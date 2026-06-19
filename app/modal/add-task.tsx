@@ -24,8 +24,8 @@ const TIME_OPTIONS = [
 
 export default function AddTaskModal() {
   const { slot } = useLocalSearchParams<{ slot: TaskSlot }>();
-  const resolvedSlot: TaskSlot = (slot as TaskSlot) ?? 'now';
-  const meta = SLOT_META[resolvedSlot];
+  const [selectedSlot, setSelectedSlot] = useState<TaskSlot>((slot as TaskSlot) ?? 'now');
+  const meta = SLOT_META[selectedSlot];
 
   const [title, setTitle] = useState('');
   const [estimatedMinutes, setEstimatedMinutes] = useState<number | undefined>();
@@ -34,7 +34,7 @@ export default function AddTaskModal() {
   function handleAdd() {
     if (!title.trim()) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    addTask(title.trim(), resolvedSlot, estimatedMinutes);
+    addTask(title.trim(), selectedSlot, estimatedMinutes);
     router.back();
   }
 
@@ -52,14 +52,33 @@ export default function AddTaskModal() {
           {/* Drag handle */}
           <View style={styles.handle} />
 
-          {/* Slot badge */}
-          <View style={[styles.slotBadge, { borderColor: meta.color + '60' }]}>
-            <Text style={[styles.slotBadgeText, { color: meta.color }]}>
-              {meta.emoji} {meta.label}
-            </Text>
-          </View>
-
           <Text style={styles.title}>Add a task</Text>
+
+          {/* Slot picker */}
+          <View style={styles.slotPicker}>
+            {(Object.keys(SLOT_META) as TaskSlot[]).map((s) => {
+              const m = SLOT_META[s];
+              const active = selectedSlot === s;
+              return (
+                <TouchableOpacity
+                  key={s}
+                  style={[
+                    styles.slotBtn,
+                    { borderColor: active ? m.color : Colors.border },
+                    active && { backgroundColor: m.color + '20' },
+                  ]}
+                  onPress={() => {
+                    setSelectedSlot(s);
+                    Haptics.selectionAsync();
+                  }}
+                >
+                  <Text style={[styles.slotBtnText, { color: active ? m.color : Colors.textMuted }]}>
+                    {m.emoji} {m.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
           {/* Input */}
           <TextInput
@@ -140,18 +159,22 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: 28,
   },
-  slotBadge: {
-    alignSelf: 'flex-start',
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    marginBottom: 12,
+  slotPicker: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 24,
   },
-  slotBadgeText: {
+  slotBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    alignItems: 'center',
+  },
+  slotBtnText: {
     fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 1,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   title: {
     fontSize: 26,
