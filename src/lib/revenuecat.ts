@@ -4,12 +4,16 @@ import { Platform } from 'react-native';
 const REVENUECAT_IOS_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY ?? '';
 
 export function initRevenueCat() {
-  if (!REVENUECAT_IOS_KEY) return;
-  if (__DEV__) {
-    Purchases.setLogLevel(LOG_LEVEL.DEBUG);
-  }
-  if (Platform.OS === 'ios') {
-    Purchases.configure({ apiKey: REVENUECAT_IOS_KEY });
+  if (!REVENUECAT_IOS_KEY || REVENUECAT_IOS_KEY === 'placeholder') return;
+  try {
+    if (__DEV__) {
+      Purchases.setLogLevel(LOG_LEVEL.DEBUG);
+    }
+    if (Platform.OS === 'ios') {
+      Purchases.configure({ apiKey: REVENUECAT_IOS_KEY });
+    }
+  } catch {
+    // silently skip — real key needed for purchases to work
   }
 }
 
