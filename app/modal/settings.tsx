@@ -218,7 +218,7 @@ export default function SettingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.surface },
+  safe: { flex: 1, backgroundColor: Colors.background },
   scroll: { padding: 24, paddingBottom: 48 },
   handle: {
     width: 40, height: 4,
@@ -240,11 +240,15 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   card: {
-    backgroundColor: Colors.surfaceHigh,
+    backgroundColor: Colors.surface,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: Colors.border,
     padding: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
   },
   cardLabel: {
     fontSize: 13, color: Colors.textSecondary,

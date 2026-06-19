@@ -1,286 +1,211 @@
 import { useEffect, useRef } from 'react';
-import {
-  View, Text, StyleSheet, SafeAreaView,
-  ScrollView, Animated,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Animated } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/src/constants/colors';
 import { useTaskStore } from '@/src/store/taskStore';
-import { IllustrationPlaceholder } from '@/src/components/IllustrationPlaceholder';
 import { useMotivationalQuote } from '@/src/hooks/useMotivationalQuote';
 
 function getMood(count: number): { emoji: string; label: string } {
-  if (count === 0) return { emoji: '😴', label: 'Rest is productive too' };
+  if (count === 0) return { emoji: '😴', label: 'Rest is productive too.' };
   if (count === 1) return { emoji: '🌱', label: 'You started. That matters.' };
   if (count <= 3) return { emoji: '🙂', label: 'Solid day.' };
-  if (count <= 6) return { emoji: '😄', label: 'You\'re on a roll!' };
-  if (count <= 10) return { emoji: '🔥', label: 'On fire today!' };
-  return { emoji: '🤯', label: 'Legendary focus day.' };
+  if (count <= 6) return { emoji: '😄', label: "You're on a roll." };
+  if (count <= 10) return { emoji: '🔥', label: 'On fire today.' };
+  return { emoji: '🤯', label: 'Legendary day.' };
 }
 
-function formatTime(iso?: string): string {
+function formatTime(iso?: string) {
   if (!iso) return '';
-  return new Date(iso).toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  });
+  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
 export default function WinsScreen() {
+  const insets = useSafeAreaInsets();
   const { tasks, streak } = useTaskStore();
   const quote = useMotivationalQuote();
 
-  const completed = tasks.filter((t) => t.status === 'completed');
-  const dropped = tasks.filter((t) => t.status === 'dropped');
-  const { emoji, label } = getMood(completed.length);
+  const done = tasks.filter(t => t.status === 'completed');
+  const dropped = tasks.filter(t => t.status === 'dropped');
+  const { emoji, label } = getMood(done.length);
 
-  // Animated number counter
   const countAnim = useRef(new Animated.Value(0)).current;
-  const emojiScale = useRef(new Animated.Value(0.5)).current;
+  const fadeIn = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(countAnim, {
-        toValue: completed.length,
-        duration: 600,
-        useNativeDriver: false,
-      }),
-      Animated.spring(emojiScale, {
-        toValue: 1,
-        friction: 4,
-        tension: 60,
-        useNativeDriver: true,
-      }),
+      Animated.timing(countAnim, { toValue: done.length, duration: 700, useNativeDriver: false }),
+      Animated.timing(fadeIn, { toValue: 1, duration: 500, useNativeDriver: true }),
     ]).start();
-  }, [completed.length]);
+  }, [done.length]);
 
   const displayCount = countAnim.interpolate({
-    inputRange: [0, completed.length || 1],
-    outputRange: ['0', String(completed.length)],
+    inputRange: [0, Math.max(done.length, 1)],
+    outputRange: ['0', String(done.length)],
   });
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <View style={[styles.root, { paddingTop: insets.top }]}>
       <ScrollView
-        contentContainerStyle={styles.scroll}
+        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>Today's Wins</Text>
-
-        {/* Mood + big number */}
-        <View style={styles.heroSection}>
-          <Animated.Text style={[styles.moodEmoji, { transform: [{ scale: emojiScale }] }]}>
-            {emoji}
-          </Animated.Text>
-          <Animated.Text style={styles.bigNumber}>{displayCount}</Animated.Text>
-          <Text style={styles.bigLabel}>tasks completed</Text>
-          <Text style={styles.moodLabel}>{label}</Text>
+        {/* Editorial header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Wins</Text>
+          <Text style={styles.subtitle}>
+            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+          </Text>
         </View>
 
-        {/* Stat cards */}
+        {/* Hero — big number with emoji, centered */}
+        <Animated.View style={[styles.hero, { opacity: fadeIn }]}>
+          <Text style={styles.heroEmoji}>{emoji}</Text>
+          <Animated.Text style={styles.heroNumber}>{displayCount}</Animated.Text>
+          <Text style={styles.heroUnit}>tasks done today</Text>
+          <Text style={styles.heroLabel}>{label}</Text>
+        </Animated.View>
+
+        {/* Stats row */}
         <View style={styles.statsRow}>
-          <View style={[styles.statCard, streak > 0 && styles.statCardGlow]}>
-            <Text style={styles.statEmoji}>🔥</Text>
-            <Text style={styles.statNumber}>{streak}</Text>
-            <Text style={styles.statLabel}>day streak</Text>
+          <View style={[styles.stat, streak > 0 && styles.statHighlight]}>
+            <Text style={styles.statValue}>{streak}</Text>
+            <Text style={styles.statLabel}>🔥 streak</Text>
           </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statEmoji}>🗑</Text>
-            <Text style={[styles.statNumber, { color: Colors.textMuted }]}>{dropped.length}</Text>
-            <Text style={styles.statLabel}>dropped today</Text>
-            {dropped.length > 0 && (
-              <Text style={styles.statNote}>dropping tasks is ok</Text>
-            )}
+          <View style={styles.stat}>
+            <Text style={styles.statValue}>{dropped.length}</Text>
+            <Text style={styles.statLabel}>🗑 dropped</Text>
           </View>
         </View>
 
         {/* Completed list */}
-        {completed.length > 0 ? (
+        {done.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>COMPLETED</Text>
-            {completed.map((task) => (
-              <Animated.View
-                key={task.id}
-                style={[styles.completedItem, { opacity: 1 }]}
-              >
-                <Text style={styles.completedCheck}>✅</Text>
-                <Text style={styles.completedTitle} numberOfLines={2}>
-                  {task.title}
-                </Text>
-                <Text style={styles.completedTime}>{formatTime(task.completedAt)}</Text>
-              </Animated.View>
+            <Text style={styles.sectionTitle}>Completed</Text>
+            {done.map(task => (
+              <View key={task.id} style={styles.doneItem}>
+                <View style={[styles.doneCheck, { backgroundColor: Colors.primary + '20' }]}>
+                  <Text style={[styles.doneCheckText, { color: Colors.primary }]}>✓</Text>
+                </View>
+                <Text style={styles.doneTitle} numberOfLines={2}>{task.title}</Text>
+                <Text style={styles.doneTime}>{formatTime(task.completedAt)}</Text>
+              </View>
             ))}
-          </View>
-        ) : (
-          <View style={styles.emptyState}>
-            {/* Placeholder — swap for: require('@/assets/illustrations/empty-wins.png') */}
-            <IllustrationPlaceholder emoji="🏆" size={96} bgColor={Colors.surface} />
-            <Text style={styles.emptyTitle}>No wins yet today</Text>
-            <Text style={styles.emptySubtext}>
-              Go check off a task — you've got this.
-            </Text>
           </View>
         )}
 
-        {/* Motivational quote */}
-        <View style={styles.quoteCard}>
-          <View style={styles.quoteAccent} />
-          <Text style={styles.quoteText}>"{quote}"</Text>
-        </View>
+        {done.length === 0 && (
+          <View style={styles.empty}>
+            <Text style={styles.emptyEmoji}>🏆</Text>
+            <Text style={styles.emptyTitle}>No wins yet</Text>
+            <Text style={styles.emptySub}>Go check off a task.</Text>
+          </View>
+        )}
+
+        {/* Quote — undecorated, just beautiful text */}
+        <Text style={styles.quote}>"{quote}"</Text>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  scroll: {
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 40,
-  },
+  root: { flex: 1, backgroundColor: Colors.background },
+  scroll: { paddingHorizontal: 24 },
+
+  header: { paddingTop: 20, marginBottom: 28 },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    marginBottom: 28,
-  },
-  heroSection: {
-    alignItems: 'center',
-    marginBottom: 28,
-  },
-  moodEmoji: {
-    fontSize: 80,
-    marginBottom: 8,
-  },
-  bigNumber: {
-    fontSize: 72,
+    fontSize: 34,
     fontWeight: '800',
     color: Colors.textPrimary,
-    lineHeight: 80,
-  },
-  bigLabel: {
-    fontSize: 16,
-    color: Colors.textSecondary,
-    marginTop: 4,
-  },
-  moodLabel: {
-    fontSize: 14,
-    color: Colors.textMuted,
-    marginTop: 6,
-    fontStyle: 'italic',
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 32,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: 20,
-    alignItems: 'center',
-  },
-  statCardGlow: {
-    shadowColor: Colors.warning,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    borderColor: Colors.warning + '40',
-  },
-  statEmoji: {
-    fontSize: 24,
-    marginBottom: 6,
-  },
-  statNumber: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: Colors.textPrimary,
+    letterSpacing: -0.8,
     marginBottom: 2,
   },
-  statLabel: {
-    fontSize: 13,
-    color: Colors.textSecondary,
+  subtitle: { fontSize: 15, color: Colors.textMuted, fontWeight: '500' },
+
+  hero: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    backgroundColor: Colors.surface,
+    borderRadius: 24,
+    marginBottom: 16,
+    // Real shadow makes this "float"
+    shadowColor: '#000',
+    shadowOpacity: 0.07,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   },
-  statNote: {
-    fontSize: 11,
-    color: Colors.textMuted,
-    fontStyle: 'italic',
-    marginTop: 4,
-    textAlign: 'center',
+  heroEmoji: { fontSize: 56, marginBottom: 8 },
+  heroNumber: {
+    fontSize: 80,
+    fontWeight: '800',
+    color: Colors.textPrimary,
+    letterSpacing: -3,
+    lineHeight: 88,
   },
-  section: {
-    marginBottom: 24,
+  heroUnit: { fontSize: 15, color: Colors.textMuted, marginTop: 4 },
+  heroLabel: { fontSize: 14, color: Colors.textSecondary, marginTop: 6, fontStyle: 'italic' },
+
+  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 28 },
+  stat: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 18,
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
+  statHighlight: { backgroundColor: Colors.warning + '12' },
+  statValue: { fontSize: 30, fontWeight: '700', color: Colors.textPrimary, marginBottom: 2 },
+  statLabel: { fontSize: 13, color: Colors.textMuted },
+
+  section: { marginBottom: 28 },
   sectionTitle: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
     color: Colors.textMuted,
-    letterSpacing: 2,
-    marginBottom: 12,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: 10,
   },
-  completedItem: {
+  doneItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
     backgroundColor: Colors.surface,
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 13,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     marginBottom: 6,
-    gap: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
   },
-  completedCheck: {
-    fontSize: 16,
+  doneCheck: {
+    width: 24, height: 24, borderRadius: 6,
+    alignItems: 'center', justifyContent: 'center',
   },
-  completedTitle: {
-    flex: 1,
-    fontSize: 15,
-    color: Colors.textPrimary,
-  },
-  completedTime: {
-    fontSize: 12,
+  doneCheckText: { fontSize: 11, fontWeight: '800' },
+  doneTitle: { flex: 1, fontSize: 15, color: Colors.textPrimary },
+  doneTime: { fontSize: 12, color: Colors.textMuted },
+
+  empty: { alignItems: 'center', paddingVertical: 48, gap: 10 },
+  emptyEmoji: { fontSize: 52 },
+  emptyTitle: { fontSize: 18, fontWeight: '600', color: Colors.textPrimary },
+  emptySub: { fontSize: 14, color: Colors.textSecondary },
+
+  quote: {
+    fontSize: 14,
     color: Colors.textMuted,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 32,
-    marginBottom: 12,
-    gap: 14,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
-  quoteCard: {
-    flexDirection: 'row',
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
-    padding: 20,
-    gap: 14,
-  },
-  quoteAccent: {
-    width: 3,
-    borderRadius: 2,
-    backgroundColor: Colors.primary,
-    alignSelf: 'stretch',
-  },
-  quoteText: {
-    flex: 1,
-    fontSize: 14,
-    color: Colors.textSecondary,
     lineHeight: 22,
     fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: 20,
+    paddingHorizontal: 12,
   },
 });

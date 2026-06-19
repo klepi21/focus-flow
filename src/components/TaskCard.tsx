@@ -5,12 +5,11 @@ import * as Haptics from 'expo-haptics';
 import { Colors } from '@/src/constants/colors';
 import { Task, TaskSlot } from '@/src/types';
 
-const SLOT_COLORS: Record<TaskSlot, string> = {
+const SLOT_COLOR: Record<TaskSlot, string> = {
   now: Colors.now,
   next: Colors.next,
   later: Colors.later,
 };
-
 const SLOT_ABOVE: Record<TaskSlot, TaskSlot | null> = {
   now: null,
   next: 'now',
@@ -25,109 +24,89 @@ interface Props {
 }
 
 export function TaskCard({ task, onComplete, onDrop, onPromote }: Props) {
-  const [completed, setCompleted] = useState(false);
-  const swipeableRef = useRef<Swipeable>(null);
+  const [done, setDone] = useState(false);
+  const swipeRef = useRef<Swipeable>(null);
   const checkScale = useRef(new Animated.Value(1)).current;
-  const color = SLOT_COLORS[task.slot];
+  const cardOpacity = useRef(new Animated.Value(1)).current;
+  const color = SLOT_COLOR[task.slot];
   const slotAbove = SLOT_ABOVE[task.slot];
 
   function handleComplete() {
-    if (completed) return;
-    setCompleted(true);
+    if (done) return;
+    setDone(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     Animated.sequence([
-      Animated.spring(checkScale, { toValue: 1.2, friction: 4, useNativeDriver: true }),
-      Animated.timing(checkScale, { toValue: 1, duration: 100, useNativeDriver: true }),
+      Animated.spring(checkScale, { toValue: 1.3, friction: 4, useNativeDriver: true }),
+      Animated.timing(checkScale, { toValue: 1, duration: 120, useNativeDriver: true }),
     ]).start(() => {
-      setTimeout(() => onComplete(task.id), 300);
+      setTimeout(() => {
+        Animated.timing(cardOpacity, { toValue: 0, duration: 240, useNativeDriver: true }).start();
+        setTimeout(() => onComplete(task.id), 240);
+      }, 160);
     });
   }
 
-  function handleDrop() {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    swipeableRef.current?.close();
-    onDrop(task.id);
-  }
-
-  function handlePromote() {
-    if (!slotAbove) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    swipeableRef.current?.close();
-    onPromote(task.id, slotAbove);
-  }
-
-  function renderRightActions(_: unknown, dragX: Animated.AnimatedInterpolation<number>) {
-    const scale = dragX.interpolate({
-      inputRange: [-80, 0],
-      outputRange: [1, 0.8],
-      extrapolate: 'clamp',
-    });
+  function renderRight(_: unknown, dragX: Animated.AnimatedInterpolation<number>) {
+    const scale = dragX.interpolate({ inputRange: [-72, 0], outputRange: [1, 0.85], extrapolate: 'clamp' });
     return (
-      <TouchableOpacity onPress={handleDrop} activeOpacity={0.8}>
-        <Animated.View style={[styles.swipeRight, { transform: [{ scale }] }]}>
+      <Animated.View style={[styles.swipeRight, { transform: [{ scale }] }]}>
+        <TouchableOpacity style={styles.swipeTap} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); swipeRef.current?.close(); onDrop(task.id); }}>
           <Text style={styles.swipeIcon}>🗑</Text>
-        </Animated.View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </Animated.View>
     );
   }
 
-  function renderLeftActions(_: unknown, dragX: Animated.AnimatedInterpolation<number>) {
+  function renderLeft(_: unknown, dragX: Animated.AnimatedInterpolation<number>) {
     if (!slotAbove) return null;
-    const scale = dragX.interpolate({
-      inputRange: [0, 80],
-      outputRange: [0.8, 1],
-      extrapolate: 'clamp',
-    });
+    const scale = dragX.interpolate({ inputRange: [0, 72], outputRange: [0.85, 1], extrapolate: 'clamp' });
     return (
-      <TouchableOpacity onPress={handlePromote} activeOpacity={0.8}>
-        <Animated.View style={[styles.swipeLeft, { backgroundColor: color + 'CC', transform: [{ scale }] }]}>
+      <Animated.View style={[styles.swipeLeft, { backgroundColor: color + 'DD', transform: [{ scale }] }]}>
+        <TouchableOpacity style={styles.swipeTap} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); swipeRef.current?.close(); onPromote(task.id, slotAbove); }}>
           <Text style={styles.swipeIcon}>↑</Text>
-        </Animated.View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </Animated.View>
     );
   }
 
   return (
-    <Swipeable
-      ref={swipeableRef}
-      renderRightActions={renderRightActions}
-      renderLeftActions={renderLeftActions}
-      overshootRight={false}
-      overshootLeft={false}
-      friction={2}
-    >
-      <View style={[styles.card, { borderLeftColor: color }]}>
-        <TouchableOpacity
-          onPress={handleComplete}
-          style={styles.checkboxWrap}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Animated.View
-            style={[
+    <Animated.View style={{ opacity: cardOpacity, marginBottom: 8 }}>
+      <Swipeable
+        ref={swipeRef}
+        renderRightActions={renderRight}
+        renderLeftActions={renderLeft}
+        overshootRight={false}
+        overshootLeft={false}
+        friction={2}
+      >
+        <View style={styles.card}>
+          {/* Slot color: only here, nowhere else on the card */}
+          <View style={[styles.stripe, { backgroundColor: color }]} />
+
+          {/* Checkbox — rounds to filled circle with slot color when done */}
+          <TouchableOpacity onPress={handleComplete} hitSlop={{ top: 16, bottom: 16, left: 8, right: 16 }}>
+            <Animated.View style={[
               styles.checkbox,
               { borderColor: color },
-              completed && { backgroundColor: color },
+              done && { backgroundColor: color },
               { transform: [{ scale: checkScale }] },
-            ]}
-          >
-            {completed && <Text style={styles.checkmark}>✓</Text>}
-          </Animated.View>
-        </TouchableOpacity>
+            ]}>
+              {done && <Text style={styles.check}>✓</Text>}
+            </Animated.View>
+          </TouchableOpacity>
 
-        <Text
-          style={[styles.title, completed && styles.titleDone]}
-          numberOfLines={2}
-        >
-          {task.title}
-        </Text>
+          {/* Title — 17pt, the iOS standard for list items */}
+          <Text style={[styles.title, done && styles.titleDone]} numberOfLines={2}>
+            {task.title}
+          </Text>
 
-        {task.estimatedMinutes !== undefined && (
-          <View style={styles.timeTag}>
-            <Text style={styles.timeText}>{task.estimatedMinutes} min</Text>
-          </View>
-        )}
-      </View>
-    </Swipeable>
+          {/* Time estimate — plain muted text, right aligned */}
+          {task.estimatedMinutes !== undefined && (
+            <Text style={styles.time}>{task.estimatedMinutes}m</Text>
+          )}
+        </View>
+      </Swipeable>
+    </Animated.View>
   );
 }
 
@@ -136,34 +115,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderRadius: 12,
-    borderLeftWidth: 3,
-    paddingVertical: 16,
+    borderRadius: 14,
+    overflow: 'hidden',
+    paddingVertical: 15,
     paddingRight: 16,
-    paddingLeft: 12,
-    marginBottom: 8,
     gap: 12,
+    // Real shadow — no border. Shadow IS the depth, not a border.
+    shadowColor: '#000',
+    shadowOpacity: 0.07,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
   },
-  checkboxWrap: {
-    padding: 2,
+  stripe: {
+    width: 4,
+    alignSelf: 'stretch',
   },
   checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
+    width: 22,
+    height: 22,
+    borderRadius: 11, // circle
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkmark: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
+  check: { color: '#FFF', fontSize: 11, fontWeight: '800' },
   title: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: '500',
+    fontSize: 17, // iOS standard for list items
+    fontWeight: '400',
     color: Colors.textPrimary,
     lineHeight: 22,
   },
@@ -171,36 +151,31 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     textDecorationLine: 'line-through',
   },
-  timeTag: {
-    backgroundColor: Colors.surfaceHigh,
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  timeText: {
-    fontSize: 12,
-    fontWeight: '500',
+  time: {
+    fontSize: 13,
     color: Colors.textMuted,
+    fontWeight: '400',
   },
   swipeRight: {
+    width: 64,
     backgroundColor: Colors.danger,
-    borderRadius: 12,
-    width: 72,
-    height: '100%',
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 14,
     marginBottom: 8,
   },
   swipeLeft: {
-    borderRadius: 12,
-    width: 72,
+    width: 64,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 14,
+    marginBottom: 8,
+  },
+  swipeTap: {
+    width: '100%',
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
   },
-  swipeIcon: {
-    fontSize: 20,
-    color: '#FFFFFF',
-  },
+  swipeIcon: { fontSize: 20 },
 });

@@ -3,10 +3,15 @@ import { Colors } from '@/src/constants/colors';
 import { Task, TaskSlot } from '@/src/types';
 import { TaskCard } from './TaskCard';
 
-const SLOT_CONFIG: Record<TaskSlot, { emoji: string; label: string; description: string; color: string }> = {
-  now: { emoji: '⚡', label: 'NOW', description: 'do this first', color: Colors.now },
-  next: { emoji: '👉', label: 'NEXT', description: 'up next', color: Colors.next },
-  later: { emoji: '🌙', label: 'LATER', description: 'not yet', color: Colors.later },
+const SLOT_CONFIG: Record<TaskSlot, {
+  label: string;
+  color: string;
+  tint: string;
+  emptyText: string;
+}> = {
+  now:   { label: 'Now',   color: Colors.now,   tint: 'rgba(212,112,58,0.07)',   emptyText: "What's the most important thing right now?" },
+  next:  { label: 'Next',  color: Colors.next,  tint: 'rgba(75,142,200,0.07)',   emptyText: 'What comes after?' },
+  later: { label: 'Later', color: Colors.later, tint: 'rgba(127,168,153,0.07)',  emptyText: 'Anything else on your mind?' },
 };
 
 interface Props {
@@ -19,27 +24,31 @@ interface Props {
 }
 
 export function SlotSection({ slot, tasks, onAddTask, onComplete, onDrop, onPromote }: Props) {
-  const config = SLOT_CONFIG[slot];
-  const isLater = slot === 'later';
+  const cfg = SLOT_CONFIG[slot];
 
   return (
-    <View style={[styles.section, isLater && styles.sectionMuted]}>
-      {/* Section header */}
-      <View style={styles.header}>
-        <View style={[styles.dot, { backgroundColor: config.color }]} />
-        <Text style={[styles.label, { color: config.color }]}>
-          {config.emoji} {config.label}
-        </Text>
-        <Text style={styles.description}>{config.description}</Text>
+    // Each slot is its own "room" — a tinted container that gives identity without visual noise
+    <View style={[styles.room, { backgroundColor: cfg.tint }]}>
+      {/* Header: label left, add button right */}
+      <View style={styles.roomHeader}>
+        <View style={[styles.labelLine, { backgroundColor: cfg.color }]} />
+        <Text style={[styles.label, { color: cfg.color }]}>{cfg.label}</Text>
+        <TouchableOpacity
+          style={styles.addBtn}
+          onPress={onAddTask}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Text style={[styles.addBtnText, { color: cfg.color }]}>＋</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Tasks */}
+      {/* Tasks or empty state */}
       {tasks.length === 0 ? (
-        <TouchableOpacity style={styles.emptySlot} onPress={onAddTask} activeOpacity={0.6}>
-          <Text style={styles.emptyText}>＋ Add your first task</Text>
+        <TouchableOpacity onPress={onAddTask} activeOpacity={0.5} style={styles.emptyWrap}>
+          <Text style={styles.emptyText}>{cfg.emptyText}</Text>
         </TouchableOpacity>
       ) : (
-        <>
+        <View style={styles.taskList}>
           {tasks.map((task) => (
             <TaskCard
               key={task.id}
@@ -49,63 +58,58 @@ export function SlotSection({ slot, tasks, onAddTask, onComplete, onDrop, onProm
               onPromote={onPromote}
             />
           ))}
-          <TouchableOpacity style={styles.addMore} onPress={onAddTask} activeOpacity={0.6}>
-            <Text style={styles.addMoreText}>＋ Add another</Text>
-          </TouchableOpacity>
-        </>
+        </View>
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  section: {
-    marginBottom: 28,
+  room: {
+    borderRadius: 20,
+    marginBottom: 12,
+    padding: 16,
+    // No border — the tint IS the identity. Borders add noise.
   },
-  sectionMuted: {
-    opacity: 0.7,
-  },
-  header: {
+  roomHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     marginBottom: 12,
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  labelLine: {
+    width: 3,
+    height: 16,
+    borderRadius: 2,
   },
   label: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 2,
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+    flex: 1,
   },
-  description: {
-    fontSize: 11,
-    color: Colors.textMuted,
-    marginLeft: 'auto',
-  },
-  emptySlot: {
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderStyle: 'dashed',
-    height: 56,
+  addBtn: {
+    width: 28,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  addBtnText: {
+    fontSize: 22,
+    lineHeight: 26,
+    fontWeight: '300',
+  },
+  emptyWrap: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
   },
   emptyText: {
     fontSize: 14,
     color: Colors.textMuted,
+    lineHeight: 20,
+    fontStyle: 'italic',
   },
-  addMore: {
-    paddingTop: 4,
-    paddingLeft: 4,
-  },
-  addMoreText: {
-    fontSize: 13,
-    color: Colors.textMuted,
+  taskList: {
+    gap: 0,
   },
 });

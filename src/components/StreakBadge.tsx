@@ -7,32 +7,29 @@ interface Props {
 
 export function StreakBadge({ count }: Props) {
   return (
-    <View style={styles.badge}>
+    <View style={[styles.badge, count > 0 && { borderColor: Colors.warning + '50', backgroundColor: Colors.warning + '10' }]}>
       <Text style={styles.flame}>🔥</Text>
-      <Text style={styles.count}>{count}</Text>
+      <Text style={[styles.count, count > 0 && { color: Colors.warning }]}>{count}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: Colors.border,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    alignItems: 'center',
-    minWidth: 56,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
   },
-  flame: {
-    fontSize: 16,
-    lineHeight: 20,
-  },
-  count: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    lineHeight: 24,
-  },
+  flame: { fontSize: 14 },
+  count: { fontSize: 15, fontWeight: '700', color: Colors.textPrimary },
 });
