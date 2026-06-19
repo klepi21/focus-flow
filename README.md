@@ -17,13 +17,14 @@ Focus Flow solves this by asking one question every morning: **How's your energy
 ## Core Flow
 
 ```
-Wake up → Set energy level → See your 3 tasks for the day → Focus → Win
+Wake up → Sign in → Set energy level → See your 3 tasks for the day → Focus → Win
 ```
 
-1. **Morning Check-in** — Pick Low / Medium / High energy. The app sets realistic expectations based on your answer.
-2. **Today Screen** — Three slots: NOW (do this first), NEXT (do this second), LATER (if energy allows). Swipe to promote or drop tasks.
-3. **Focus Timer** — A beautiful water-fill timer. Watch the glass fill as you work. Body-double message cards keep you company.
-4. **Wins Screen** — See what you completed, your streak, and a motivational quote. Dropping tasks is OK too — it's tracked without judgment.
+1. **Sign In** — Apple Sign In or email via Clerk. Fast, secure, no password friction.
+2. **Morning Check-in** — Pick Low / Medium / High energy. The app sets realistic expectations based on your answer.
+3. **Today Screen** — Three slots: NOW (do this first), NEXT (do this second), LATER (if energy allows). Swipe to promote or drop tasks.
+4. **Focus Timer** — A beautiful water-fill timer. Watch the glass fill as you work. Body-double message cards keep you company.
+5. **Wins Screen** — See what you completed, your streak, and a motivational quote. Dropping tasks is OK too — it's tracked without judgment.
 
 ---
 
@@ -32,6 +33,8 @@ Wake up → Set energy level → See your 3 tasks for the day → Focus → Win
 ### Screens
 | Screen | Status | Description |
 |--------|--------|-------------|
+| Sign In | 🔲 Scaffolded | Placeholder UI ready — Clerk hooks to wire in |
+| Sign Up | 🔲 Scaffolded | Placeholder UI ready — Clerk hooks to wire in |
 | Morning Check-in | ✅ Done | Energy selection with animated cards and time-based greeting |
 | Today | ✅ Done | NOW/NEXT/LATER task slots, swipe gestures, FAB, celebration overlay |
 | Focus Timer | ✅ Done | SVG water-fill animation, 4 presets, body double card, done state |
@@ -47,22 +50,23 @@ Wake up → Set energy level → See your 3 tasks for the day → Focus → Win
 | `WaterTimer` | SVG wave animation with quadratic bezier paths, fills in real time |
 | `TaskCard` | Swipeable — left promotes to higher slot, right drops with trash icon |
 | `SlotSection` | Colored slot header + task list + empty state with dashed add button |
-| `CelebrationOverlay` | Ring burst animation on task completion (Lottie swap-ready) |
+| `CelebrationOverlay` | Ring burst animation on task completion — built in RN Animated, no external files |
 | `EnergyCard` | Animated spring tap, colored left bar when selected |
 | `StreakBadge` | Flame + day count |
-| `IllustrationPlaceholder` | Emoji fallback until real AI-generated assets are dropped in |
+| `IllustrationPlaceholder` | Emoji fallback until real assets are dropped in |
 
 ### State & Logic
 - **Zustand + AsyncStorage** — full persistence across app restarts
 - **Daily reset** — runs on first open each day: checks yesterday's completions for streak, clears done/dropped tasks, resets energy
 - **Streak logic** — increments only if you completed ≥1 task yesterday; resets to 0 if you skipped a day
 - **Hydration guard** — `_hasHydrated` flag prevents redirect flicker before AsyncStorage loads
-- **Smart redirect** — if energy already set today → Today screen; if not → Morning Check-in
+- **Smart redirect** — signed out → sign-in; signed in + energy set → Today; signed in + no energy → Check-in
 
 ### Infrastructure
+- **Clerk** — authentication (Apple Sign In + email), session management, secure token storage
 - **RevenueCat** — monthly ($9.99) and annual ($59.99) subscriptions via Apple StoreKit
 - **Expo Notifications** — daily reminder, user-configurable time (6am–12pm)
-- **Supabase** — client configured, ready for auth + cloud sync (env keys needed)
+- **Supabase** — client configured, ready for cloud sync once Clerk JWT template is set up
 - **Haptics** — throughout: task complete, add, swipe, energy select, purchase
 
 ---
@@ -73,13 +77,31 @@ Wake up → Set energy level → See your 3 tasks for the day → Focus → Win
 |-------|--------|-----|
 | Framework | Expo (React Native) | Fast iteration, managed workflow, EAS builds |
 | Routing | Expo Router v2 | File-based, typed routes, modal support |
+| Auth | Clerk | Best-in-class auth UX, Apple Sign In, session handling |
 | State | Zustand + persist | Simple, no boilerplate, works great with AsyncStorage |
 | Subscriptions | RevenueCat | Handles StoreKit complexity, receipt validation, restore |
-| Animations | RN Animated + react-native-svg | Native driver for performance; SVG for the water timer |
+| Animations | RN Animated + react-native-svg | All code-based — no external asset files needed |
 | Gestures | react-native-gesture-handler | Swipeable task cards |
-| Backend | Supabase | Auth + Postgres, ready to wire up |
+| Backend | Supabase | Postgres + row-level security, links to Clerk via JWT |
 | Haptics | expo-haptics | Tactile feedback throughout |
 | Notifications | expo-notifications | Daily reminders with user-set time |
+
+---
+
+## Animated Assets — All Code-Based
+
+Every animation in the app is built in code. No Lottie files, no external assets required.
+
+| Animation | How it's built |
+|-----------|---------------|
+| Water timer wave | `react-native-svg` — quadratic bezier paths updated via `setInterval` at 25fps |
+| Task completion burst | `RN Animated` — ring scale `0→3` + opacity `1→0` over 800ms |
+| Breathing circle | `RN Animated` — scale loop `1→1.4→1` on 4s ease cycle |
+| Energy card tap | `RN Animated` — spring bounce on press |
+| Wins count | `RN Animated` — number interpolation from 0 to count |
+| Mood emoji | `RN Animated` — spring scale in on mount |
+
+The only static files the app needs are the **app icon** and **splash screen**.
 
 ---
 
@@ -88,33 +110,39 @@ Wake up → Set energy level → See your 3 tasks for the day → Focus → Win
 ```
 focus-flow/
 ├── app/                        # Expo Router screens
-│   ├── _layout.tsx             # Root layout, notifications, RevenueCat init
-│   ├── index.tsx               # Hydration guard + daily reset + smart redirect
+│   ├── _layout.tsx             # Root layout — wrap with ClerkProvider here
+│   ├── index.tsx               # Hydration guard + auth check + smart redirect
 │   ├── (auth)/
+│   │   ├── _layout.tsx
+│   │   ├── sign-in.tsx         # 🔲 Clerk sign in (scaffolded)
+│   │   ├── sign-up.tsx         # 🔲 Clerk sign up (scaffolded)
 │   │   └── onboarding.tsx      # Morning energy check-in
 │   ├── (tabs)/
 │   │   ├── today.tsx           # Main task screen
 │   │   ├── focus.tsx           # Water timer + body double
 │   │   └── wins.tsx            # Completions + streak + quote
 │   └── modal/
-│       ├── add-task.tsx        # Add task to a slot
-│       ├── distracted.tsx      # Breathing reset modal
-│       ├── settings.tsx        # App settings
-│       └── paywall.tsx         # Premium upsell
+│       ├── add-task.tsx
+│       ├── distracted.tsx
+│       ├── settings.tsx
+│       └── paywall.tsx
 ├── src/
-│   ├── components/             # Reusable UI components
+│   ├── components/             # All reusable UI components
 │   ├── constants/colors.ts     # Single source of truth for the design system
 │   ├── hooks/                  # useGreeting, useMotivationalQuote
-│   ├── lib/                    # revenuecat.ts, supabase.ts
+│   ├── lib/
+│   │   ├── clerk.ts            # 🔲 SecureStore token cache (ready to use)
+│   │   ├── revenuecat.ts       # RevenueCat init + purchase helpers
+│   │   └── supabase.ts         # Supabase client (needs env keys)
 │   ├── store/taskStore.ts      # All app state (Zustand)
-│   └── types/index.ts          # TypeScript interfaces
-├── assets/
-│   ├── illustrations/          # Drop AI-generated PNGs here
-│   └── animations/             # Drop Lottie JSON files here
-└── design/                     # Design specs (read before editing screens)
+│   └── types/index.ts
+├── assets/                     # Only icon + splash needed
+├── docs/
+│   └── CLERK_INTEGRATION.md   # Step-by-step Clerk wiring guide
+└── design/                     # Design specs — read before editing screens
     ├── DESIGN_SYSTEM.md
-    ├── ASSETS_MANIFEST.md      # Every asset with AI generation prompts
-    └── screens/                # Per-screen layout specs
+    ├── ASSETS_MANIFEST.md
+    └── screens/
 ```
 
 ---
@@ -142,31 +170,25 @@ Font: **System SF Pro** — no custom fonts, keeps it fast and native.
 
 ## What's Next
 
-### Immediate (before TestFlight)
-- [ ] Drop in AI-generated assets (prompts are all in `design/ASSETS_MANIFEST.md`)
-- [ ] Create Supabase project → fill `.env` keys
-- [ ] Create RevenueCat account → fill `.env` key → link App Store products
-- [ ] EAS Build setup: `eas build --platform ios --profile preview`
-- [ ] Decide final app name → update `app.json` + bundle identifier
-
-### Assets needed (AI prompts ready)
-| Asset | Tool | Size |
-|-------|------|------|
-| Energy Low illustration | Adobe Firefly | 156×156 @3x |
-| Energy Medium illustration | Adobe Firefly | 156×156 @3x |
-| Energy High illustration | Adobe Firefly | 156×156 @3x |
-| Empty tasks state | Midjourney | 600×480 @3x |
-| Empty wins state | Midjourney | 600×480 @3x |
-| Day complete | Midjourney | 600×480 @3x |
-| Task complete animation | LottieFiles | JSON |
-| Breathing animation | LottieFiles | JSON |
-| App icon | Canva | 1024×1024 |
+### Before TestFlight
+- [ ] **Clerk auth** — full guide in `docs/CLERK_INTEGRATION.md`
+  - [ ] `npx expo install @clerk/clerk-expo expo-secure-store`
+  - [ ] Create Clerk app at clerk.com → copy publishable key → add to `.env`
+  - [ ] Set up Apple Sign In in Clerk dashboard
+  - [ ] Wrap `_layout.tsx` with `<ClerkProvider>`
+  - [ ] Wire `useAuth()` guard in `index.tsx`
+  - [ ] Implement sign-in and sign-up screens
+- [ ] **RevenueCat** — create account → fill `.env` → link App Store products
+- [ ] **Supabase** — create project → fill `.env` → create JWT template for Clerk
+- [ ] **App icon + splash** — only static assets needed (Canva, 15 min job)
+- [ ] **EAS Build**: `eas build --platform ios --profile preview`
+- [ ] Decide final app name → update `app.json` bundle identifier
 
 ### Later
-- [ ] Apple Sign In / magic link auth (Supabase)
-- [ ] Cloud sync — tasks across devices
+- [ ] Cloud sync — tasks across devices via Supabase (Clerk userId as row key)
 - [ ] Weekly focus report
-- [ ] iPad / macOS support
+- [ ] Push notifications for streaks
+- [ ] iPad support
 - [ ] Android port
 
 ---
@@ -190,6 +212,7 @@ eas build --platform ios --profile development
 Create a `.env` file at the root (never committed):
 
 ```
+EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_xxxxxxxxxxxx
 EXPO_PUBLIC_SUPABASE_URL=your_supabase_url
 EXPO_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 EXPO_PUBLIC_REVENUECAT_IOS_KEY=your_revenuecat_ios_key
@@ -199,13 +222,34 @@ EXPO_PUBLIC_REVENUECAT_IOS_KEY=your_revenuecat_ios_key
 
 ## Monetization
 
-| Plan | Price | Notes |
-|------|-------|-------|
-| Free | $0 | Core task management, focus timer |
+| Plan | Price | What's included |
+|------|-------|-----------------|
+| Free | $0 | Core task management, focus timer, streak |
 | Monthly | $9.99/mo | Unlimited tasks, weekly reports, cloud sync, themes |
-| Annual | $59.99/yr | Same as monthly — 50% saving |
+| Annual | $59.99/yr | Everything in monthly — 50% saving |
 
-Subscriptions handled by **RevenueCat** on top of Apple StoreKit. Receipt validation, restore purchases, and entitlement management are all handled server-side.
+Subscriptions handled by **RevenueCat** on top of Apple StoreKit. Receipt validation, restore purchases, and entitlement management are all server-side.
+
+---
+
+## Auth Architecture
+
+```
+ClerkProvider (app/_layout.tsx)
+    │
+    ├─ useAuth().isSignedIn = false  →  (auth)/sign-in.tsx
+    │                                        │
+    │                              Apple / Email sign in
+    │                                        │
+    └─ useAuth().isSignedIn = true  →  index.tsx checks energy
+                                             │
+                                    ┌────────┴────────┐
+                              energy set          no energy
+                                  │                   │
+                           (tabs)/today       (auth)/onboarding
+```
+
+Full wiring guide: [`docs/CLERK_INTEGRATION.md`](./docs/CLERK_INTEGRATION.md)
 
 ---
 
