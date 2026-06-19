@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.focusflow.app",
+      "bundleIdentifier": "com.klepi.focusflow",
       "infoPlist": {
         "UIBackgroundModes": ["fetch", "remote-notification"]
       }
@@ -28,7 +28,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.focusflow.app"
+      "package": "com.klepi.focusflow"
     },
     "web": {
       "favicon": "./assets/favicon.png"
