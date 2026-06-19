@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 const REVENUECAT_IOS_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY ?? '';
 
 export function initRevenueCat() {
+  if (!REVENUECAT_IOS_KEY) return;
   if (__DEV__) {
     Purchases.setLogLevel(LOG_LEVEL.DEBUG);
   }
