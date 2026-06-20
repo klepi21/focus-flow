@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Task, TaskSlot, TaskStatus, EnergyLevel } from '../types';
+import { Task, TaskSlot, TaskStatus, EnergyLevel, DailyRecord } from '../types';
 
 function toDateString(date = new Date()): string {
   return date.toISOString().split('T')[0];
@@ -13,43 +13,50 @@ function yesterdayString(): string {
   return toDateString(d);
 }
 
+const STREAK_MILESTONES = [3, 7, 14, 30, 50, 100];
+
 interface TaskStore {
-  // Hydration flag — true once AsyncStorage has been read
   _hasHydrated: boolean;
   setHasHydrated: (v: boolean) => void;
 
-  // Tasks
   tasks: Task[];
-
-  // Daily energy
   energyLevel: EnergyLevel | null;
-  todayEnergyDate: string | null; // 'YYYY-MM-DD' of the day energy was set
+  todayEnergyDate: string | null;
 
-  // Streak
   streak: number;
-  lastActiveDate: string | null; // last date we had ≥1 completion
+  lastActiveDate: string | null;
+
+  // History — last 30 days, most recent first
+  weeklyHistory: DailyRecord[];
+
+  // Milestones already celebrated — never show the same one twice
+  celebratedMilestones: number[];
 
   // Settings
   notificationEnabled: boolean;
-  notificationHour: number;   // 0-23
-  notificationMinute: number; // 0-59
+  notificationHour: number;
+  notificationMinute: number;
   isPremium: boolean;
 
-  // Actions
+  // Task actions
   setEnergyLevel: (level: EnergyLevel) => void;
   addTask: (title: string, slot: TaskSlot, estimatedMinutes?: number) => void;
   updateTaskStatus: (id: string, status: TaskStatus) => void;
   moveTask: (id: string, slot: TaskSlot) => void;
   removeTask: (id: string) => void;
 
-  // Computed helpers
+  // Computed
   getActiveTasks: (slot: TaskSlot) => Task[];
   completedTodayCount: () => number;
 
   // Day management
   checkAndResetDay: () => void;
 
-  // Settings actions
+  // Milestone
+  markMilestoneCelebrated: (streak: number) => void;
+  getPendingMilestone: () => number | null;
+
+  // Settings
   setNotificationEnabled: (v: boolean) => void;
   setNotificationTime: (hour: number, minute: number) => void;
   setIsPremium: (v: boolean) => void;
@@ -65,9 +72,10 @@ export const useTaskStore = create<TaskStore>()(
       tasks: [],
       energyLevel: null,
       todayEnergyDate: null,
-
       streak: 0,
       lastActiveDate: null,
+      weeklyHistory: [],
+      celebratedMilestones: [],
 
       notificationEnabled: true,
       notificationHour: 8,
@@ -93,14 +101,7 @@ export const useTaskStore = create<TaskStore>()(
         set((state) => ({
           tasks: state.tasks.map((t) =>
             t.id === id
-              ? {
-                  ...t,
-                  status,
-                  completedAt:
-                    status === 'completed'
-                      ? new Date().toISOString()
-                      : t.completedAt,
-                }
+              ? { ...t, status, completedAt: status === 'completed' ? new Date().toISOString() : t.completedAt }
               : t
           ),
         })),
@@ -115,10 +116,7 @@ export const useTaskStore = create<TaskStore>()(
 
       getActiveTasks: (slot) =>
         get().tasks.filter(
-          (t) =>
-            t.slot === slot &&
-            t.status !== 'dropped' &&
-            t.status !== 'completed'
+          (t) => t.slot === slot && t.status !== 'dropped' && t.status !== 'completed'
         ),
 
       completedTodayCount: () =>
@@ -128,7 +126,6 @@ export const useTaskStore = create<TaskStore>()(
         const state = get();
         const today = toDateString();
 
-        // Already reset today — nothing to do
         if (state.lastActiveDate === today) return;
 
         const hadCompletionsYesterday =
@@ -137,7 +134,20 @@ export const useTaskStore = create<TaskStore>()(
 
         const newStreak = hadCompletionsYesterday ? state.streak + 1 : 0;
 
-        // Archive: keep only active (pending / in_progress) tasks
+        // Save yesterday's record before wiping
+        let newHistory = state.weeklyHistory;
+        if (state.lastActiveDate) {
+          const record: DailyRecord = {
+            date: state.lastActiveDate,
+            completed: state.tasks.filter((t) => t.status === 'completed').length,
+            dropped: state.tasks.filter((t) => t.status === 'dropped').length,
+            energy: state.energyLevel,
+            streak: newStreak,
+          };
+          // Most recent first, keep 30 days
+          newHistory = [record, ...state.weeklyHistory].slice(0, 30);
+        }
+
         const survivingTasks = state.tasks.filter(
           (t) => t.status === 'pending' || t.status === 'in_progress'
         );
@@ -148,7 +158,22 @@ export const useTaskStore = create<TaskStore>()(
           lastActiveDate: today,
           energyLevel: null,
           todayEnergyDate: null,
+          weeklyHistory: newHistory,
         });
+      },
+
+      markMilestoneCelebrated: (streak) =>
+        set((state) => ({
+          celebratedMilestones: state.celebratedMilestones.includes(streak)
+            ? state.celebratedMilestones
+            : [...state.celebratedMilestones, streak],
+        })),
+
+      getPendingMilestone: () => {
+        const { streak, celebratedMilestones } = get();
+        return STREAK_MILESTONES.find(
+          (m) => streak >= m && !celebratedMilestones.includes(m)
+        ) ?? null;
       },
 
       setNotificationEnabled: (v) => set({ notificationEnabled: v }),
@@ -165,13 +190,14 @@ export const useTaskStore = create<TaskStore>()(
     {
       name: 'focus-flow-store',
       storage: createJSONStorage(() => AsyncStorage),
-      // Only persist state — not functions
       partialize: (state) => ({
         tasks: state.tasks,
         energyLevel: state.energyLevel,
         todayEnergyDate: state.todayEnergyDate,
         streak: state.streak,
         lastActiveDate: state.lastActiveDate,
+        weeklyHistory: state.weeklyHistory,
+        celebratedMilestones: state.celebratedMilestones,
         notificationEnabled: state.notificationEnabled,
         notificationHour: state.notificationHour,
         notificationMinute: state.notificationMinute,

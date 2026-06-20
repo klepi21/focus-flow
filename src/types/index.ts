@@ -21,6 +21,14 @@ export interface DayPlan {
   streak: number;
 }
 
+export interface DailyRecord {
+  date: string;           // YYYY-MM-DD
+  completed: number;
+  dropped: number;
+  energy: EnergyLevel | null;
+  streak: number;
+}
+
 export interface UserProfile {
   id: string;
   name: string;

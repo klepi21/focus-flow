@@ -4,6 +4,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/src/constants/colors';
 import { WaterTimer } from '@/src/components/WaterTimer';
+import { useTaskStore } from '@/src/store/taskStore';
+import { Task } from '@/src/types';
 
 const BODY_DOUBLES = [
   'Imagine someone sitting quietly beside you. Working. Focused.',
@@ -25,9 +27,16 @@ export default function FocusScreen() {
   const [remaining, setRemaining] = useState(1500);
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(false);
+  const [focusTaskId, setFocusTaskId] = useState<string | null>(null);
+  const [markDonePrompt, setMarkDonePrompt] = useState(false);
+
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const msgIdx = useRef(Math.floor(Math.random() * BODY_DOUBLES.length)).current;
   const doneOpacity = useRef(new Animated.Value(0)).current;
+
+  const { getActiveTasks, updateTaskStatus } = useTaskStore();
+  const nowTasks = getActiveTasks('now');
+  const focusTask: Task | undefined = nowTasks.find(t => t.id === focusTaskId);
 
   useEffect(() => {
     if (running) {
@@ -35,7 +44,10 @@ export default function FocusScreen() {
         setRemaining(prev => {
           if (prev <= 1) {
             clearInterval(intervalRef.current!);
-            setRunning(false); setDone(true);
+            setRunning(false);
+            setDone(true);
+            // Prompt to mark task done if one is selected
+            if (focusTaskId) setMarkDonePrompt(true);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             return 0;
           }
@@ -50,14 +62,30 @@ export default function FocusScreen() {
     Animated.timing(doneOpacity, { toValue: done ? 1 : 0, duration: 400, useNativeDriver: true }).start();
   }, [done]);
 
+  // If the selected task gets completed externally, deselect it
+  useEffect(() => {
+    if (focusTaskId && !nowTasks.find(t => t.id === focusTaskId)) {
+      setFocusTaskId(null);
+    }
+  }, [nowTasks]);
+
   function pickPreset(s: number) {
     if (running) return;
     setSelected(s); setRemaining(s); setDone(false); Haptics.selectionAsync();
   }
-  function start() { setDone(false); setRunning(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }
+  function start() { setDone(false); setMarkDonePrompt(false); setRunning(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }
   function pause() { setRunning(false); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }
-  function reset() { setRunning(false); setRemaining(selected); setDone(false); }
-  function again() { setRemaining(selected); setDone(false); setRunning(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }
+  function reset() { setRunning(false); setRemaining(selected); setDone(false); setMarkDonePrompt(false); }
+  function again() { setRemaining(selected); setDone(false); setMarkDonePrompt(false); setRunning(true); Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }
+
+  function handleMarkTaskDone() {
+    if (focusTaskId) {
+      updateTaskStatus(focusTaskId, 'completed');
+      setFocusTaskId(null);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+    setMarkDonePrompt(false);
+  }
 
   const progress = 1 - remaining / selected;
   const mins = Math.floor(remaining / 60);
@@ -74,9 +102,52 @@ export default function FocusScreen() {
         <View style={styles.header}>
           <Text style={styles.title}>Focus</Text>
           <Text style={styles.subtitle}>
-            {running ? 'Stay with it.' : done ? 'Session complete.' : 'Choose a duration.'}
+            {running
+              ? focusTask ? `Working on: ${focusTask.title}` : 'Stay with it.'
+              : done
+                ? 'Session complete.'
+                : 'Choose a duration.'}
           </Text>
         </View>
+
+        {/* Task chip selector — NOW tasks only */}
+        {nowTasks.length > 0 && !running && !done && (
+          <View style={styles.taskPicker}>
+            <Text style={styles.taskPickerLabel}>Working on:</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.taskChips}
+            >
+              {nowTasks.map(task => {
+                const active = task.id === focusTaskId;
+                return (
+                  <TouchableOpacity
+                    key={task.id}
+                    style={[styles.chip, active && styles.chipActive]}
+                    onPress={() => {
+                      setFocusTaskId(active ? null : task.id);
+                      Haptics.selectionAsync();
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>
+                      {task.title}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Active focus task indicator (during session) */}
+        {running && focusTask && (
+          <View style={styles.activeFocusTask}>
+            <View style={[styles.activeFocusDot, { backgroundColor: Colors.now }]} />
+            <Text style={styles.activeFocusText} numberOfLines={1}>{focusTask.title}</Text>
+          </View>
+        )}
 
         {/* Timer — dominant visual element */}
         <View style={styles.timerWrap}>
@@ -106,6 +177,30 @@ export default function FocusScreen() {
           })}
         </View>
 
+        {/* Mark task done prompt — shown right after timer ends if task was selected */}
+        {markDonePrompt && focusTask && (
+          <View style={styles.markDoneCard}>
+            <Text style={styles.markDoneTitle}>Did you finish it?</Text>
+            <Text style={styles.markDoneTask} numberOfLines={2}>{focusTask.title}</Text>
+            <View style={styles.markDoneBtns}>
+              <TouchableOpacity
+                style={styles.markDoneYes}
+                onPress={handleMarkTaskDone}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.markDoneYesText}>✓ Mark done</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.markDoneNo}
+                onPress={() => setMarkDonePrompt(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.markDoneNoText}>Not yet</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Controls */}
         <View style={styles.controls}>
           {!running && remaining !== selected && (
@@ -124,15 +219,19 @@ export default function FocusScreen() {
             </TouchableOpacity>
           ) : (
             <TouchableOpacity style={styles.mainBtn} onPress={start} activeOpacity={0.85}>
-              <Text style={styles.mainBtnText}>Start</Text>
+              <Text style={styles.mainBtnText}>
+                {focusTask ? `Start — ${focusTask.title.split(' ').slice(0, 3).join(' ')}${focusTask.title.split(' ').length > 3 ? '…' : ''}` : 'Start'}
+              </Text>
             </TouchableOpacity>
           )}
         </View>
 
-        {/* Done message */}
-        <Animated.View style={[styles.doneMsg, { opacity: doneOpacity }]} pointerEvents={done ? 'auto' : 'none'}>
-          <Text style={styles.doneMsgText}>✓ {Math.floor(selected / 60)} minutes of real focus.</Text>
-        </Animated.View>
+        {/* Done message (when no task selected) */}
+        {!markDonePrompt && (
+          <Animated.View style={[styles.doneMsg, { opacity: doneOpacity }]} pointerEvents={done ? 'auto' : 'none'}>
+            <Text style={styles.doneMsgText}>✓ {Math.floor(selected / 60)} minutes of real focus.</Text>
+          </Animated.View>
+        )}
 
         {/* Body double card */}
         <View style={styles.bodyCard}>
@@ -151,9 +250,53 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
   scroll: { paddingHorizontal: 24, alignItems: 'center' },
 
-  header: { alignSelf: 'stretch', paddingTop: 20, marginBottom: 32 },
+  header: { alignSelf: 'stretch', paddingTop: 20, marginBottom: 24 },
   title: { fontSize: 34, fontWeight: '800', color: Colors.textPrimary, letterSpacing: -0.8, marginBottom: 4 },
   subtitle: { fontSize: 15, color: Colors.textMuted },
+
+  taskPicker: { alignSelf: 'stretch', marginBottom: 20 },
+  taskPickerLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.textMuted,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  taskChips: { gap: 8, paddingRight: 4 },
+  chip: {
+    maxWidth: 200,
+    backgroundColor: Colors.surface,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  chipActive: {
+    backgroundColor: Colors.now,
+    borderColor: Colors.now,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  chipTextActive: { color: '#FFF' },
+
+  activeFocusTask: {
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.now + '12',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 20,
+  },
+  activeFocusDot: { width: 8, height: 8, borderRadius: 4 },
+  activeFocusText: { fontSize: 14, fontWeight: '600', color: Colors.now, flex: 1 },
 
   timerWrap: { marginBottom: 20 },
 
@@ -164,7 +307,7 @@ const styles = StyleSheet.create({
   },
   progressFill: { height: '100%', borderRadius: 2, backgroundColor: Colors.primary },
 
-  presets: { flexDirection: 'row', gap: 8, marginBottom: 28 },
+  presets: { flexDirection: 'row', gap: 8, marginBottom: 20 },
   preset: {
     paddingHorizontal: 16, paddingVertical: 9,
     borderRadius: 10, backgroundColor: Colors.surface,
@@ -174,6 +317,51 @@ const styles = StyleSheet.create({
   presetDisabled: { opacity: 0.3 },
   presetText: { fontSize: 14, fontWeight: '600', color: Colors.textSecondary },
   presetTextActive: { color: '#FFF' },
+
+  markDoneCard: {
+    alignSelf: 'stretch',
+    backgroundColor: Colors.surface,
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+  markDoneTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    marginBottom: 6,
+  },
+  markDoneTask: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    marginBottom: 14,
+  },
+  markDoneBtns: { flexDirection: 'row', gap: 8 },
+  markDoneYes: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: Colors.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  markDoneYesText: { fontSize: 15, fontWeight: '700', color: '#FFF' },
+  markDoneNo: {
+    paddingHorizontal: 18,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  markDoneNoText: { fontSize: 15, fontWeight: '600', color: Colors.textSecondary },
 
   controls: {
     flexDirection: 'row',
@@ -195,6 +383,7 @@ const styles = StyleSheet.create({
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.35, shadowRadius: 12, elevation: 6,
+    paddingHorizontal: 12,
   },
   pauseBtn: {
     backgroundColor: Colors.surface,

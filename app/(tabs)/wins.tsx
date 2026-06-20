@@ -1,9 +1,11 @@
-import { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Animated } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Animated, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { Colors } from '@/src/constants/colors';
 import { useTaskStore } from '@/src/store/taskStore';
 import { useMotivationalQuote } from '@/src/hooks/useMotivationalQuote';
+import { StreakMilestoneOverlay } from '@/src/components/StreakMilestoneOverlay';
 
 function getMood(count: number): { emoji: string; label: string } {
   if (count === 0) return { emoji: '😴', label: 'Rest is productive too.' };
@@ -21,8 +23,9 @@ function formatTime(iso?: string) {
 
 export default function WinsScreen() {
   const insets = useSafeAreaInsets();
-  const { tasks, streak } = useTaskStore();
+  const { tasks, streak, getPendingMilestone, markMilestoneCelebrated } = useTaskStore();
   const quote = useMotivationalQuote();
+  const [pendingMilestone, setPendingMilestone] = useState<number | null>(null);
 
   const done = tasks.filter(t => t.status === 'completed');
   const dropped = tasks.filter(t => t.status === 'dropped');
@@ -38,6 +41,22 @@ export default function WinsScreen() {
     ]).start();
   }, [done.length]);
 
+  // Check milestone when screen mounts or streak changes
+  useEffect(() => {
+    const milestone = getPendingMilestone();
+    if (milestone) setPendingMilestone(milestone);
+  }, [streak]);
+
+  function handleMilestoneDismiss() {
+    if (pendingMilestone) {
+      markMilestoneCelebrated(pendingMilestone);
+      setPendingMilestone(null);
+      // Check again in case multiple milestones queued (e.g. user opened app after 8 days away)
+      const next = getPendingMilestone();
+      if (next) setTimeout(() => setPendingMilestone(next), 500);
+    }
+  }
+
   const displayCount = countAnim.interpolate({
     inputRange: [0, Math.max(done.length, 1)],
     outputRange: ['0', String(done.length)],
@@ -51,10 +70,19 @@ export default function WinsScreen() {
       >
         {/* Editorial header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Wins</Text>
-          <Text style={styles.subtitle}>
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
-          </Text>
+          <View>
+            <Text style={styles.title}>Wins</Text>
+            <Text style={styles.subtitle}>
+              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.weekBtn}
+            onPress={() => router.push('/modal/weekly-stats')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.weekBtnText}>📊 This week</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Hero — big number with emoji, centered */}
@@ -67,10 +95,14 @@ export default function WinsScreen() {
 
         {/* Stats row */}
         <View style={styles.statsRow}>
-          <View style={[styles.stat, streak > 0 && styles.statHighlight]}>
+          <TouchableOpacity
+            style={[styles.stat, streak > 0 && styles.statHighlight]}
+            onPress={() => router.push('/modal/weekly-stats')}
+            activeOpacity={0.7}
+          >
             <Text style={styles.statValue}>{streak}</Text>
             <Text style={styles.statLabel}>🔥 streak</Text>
-          </View>
+          </TouchableOpacity>
           <View style={styles.stat}>
             <Text style={styles.statValue}>{dropped.length}</Text>
             <Text style={styles.statLabel}>🗑 dropped</Text>
@@ -104,6 +136,14 @@ export default function WinsScreen() {
         {/* Quote — undecorated, just beautiful text */}
         <Text style={styles.quote}>"{quote}"</Text>
       </ScrollView>
+
+      {/* Streak milestone celebration */}
+      {pendingMilestone !== null && (
+        <StreakMilestoneOverlay
+          streak={pendingMilestone}
+          onDismiss={handleMilestoneDismiss}
+        />
+      )}
     </View>
   );
 }
@@ -112,7 +152,13 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
   scroll: { paddingHorizontal: 24 },
 
-  header: { paddingTop: 20, marginBottom: 28 },
+  header: {
+    paddingTop: 20,
+    marginBottom: 28,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
   title: {
     fontSize: 34,
     fontWeight: '800',
@@ -121,6 +167,19 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   subtitle: { fontSize: 15, color: Colors.textMuted, fontWeight: '500' },
+  weekBtn: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+    marginBottom: 2,
+  },
+  weekBtnText: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
 
   hero: {
     alignItems: 'center',
@@ -128,7 +187,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderRadius: 24,
     marginBottom: 16,
-    // Real shadow makes this "float"
     shadowColor: '#000',
     shadowOpacity: 0.07,
     shadowRadius: 20,

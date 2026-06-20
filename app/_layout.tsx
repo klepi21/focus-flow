@@ -79,6 +79,7 @@ export default function RootLayout() {
         <Stack.Screen name="modal/distracted" options={{ presentation: 'modal' }} />
         <Stack.Screen name="modal/settings" options={{ presentation: 'modal' }} />
         <Stack.Screen name="modal/paywall" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="modal/weekly-stats" options={{ presentation: 'modal' }} />
       </Stack>
     </GestureHandlerRootView>
   );

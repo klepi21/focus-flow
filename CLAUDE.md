@@ -40,7 +40,7 @@ Zero TypeScript errors. App is complete UI-wise — only missing env keys + EAS 
 - [x] src/types/index.ts — Task, EnergyLevel, TaskSlot, UserProfile types
 - [x] src/lib/supabase.ts — Supabase client (needs .env values)
 - [x] src/lib/revenuecat.ts — RevenueCat init, checkPremium, purchase, restore
-- [x] src/store/taskStore.ts — Zustand store (tasks, energy, streak, CRUD)
+- [x] src/store/taskStore.ts — Zustand store (tasks, energy, streak, weeklyHistory, celebratedMilestones, CRUD)
 
 ### Screens (FINAL — built to design spec)
 - [x] app/_layout.tsx
@@ -49,15 +49,17 @@ Zero TypeScript errors. App is complete UI-wise — only missing env keys + EAS 
 - [x] app/(auth)/onboarding.tsx — energy cards, greeting logic, haptics, CTA glow
 - [x] app/(tabs)/_layout.tsx — tab bar with emoji icons
 - [x] app/(tabs)/today.tsx — header, 3 slots, FAB, celebration overlay, distracted button
-- [x] app/(tabs)/focus.tsx — water timer, presets, body double card, done state
-- [x] app/(tabs)/wins.tsx — animated count, mood emoji, stat cards, quote
+- [x] app/(tabs)/focus.tsx — water timer, presets, NOW task chip picker, mark-done prompt, body double card
+- [x] app/(tabs)/wins.tsx — animated count, mood emoji, stat cards, "This week" button, milestone overlay trigger
 - [x] app/modal/add-task.tsx — slot badge, input, time estimate, haptics
 - [x] app/modal/distracted.tsx — breathing animation, optional note, back-to-work CTA
+- [x] app/modal/weekly-stats.tsx — 7-day bar chart, completion rate, day-by-day breakdown
 
 ### Components
 - [x] src/components/IllustrationPlaceholder.tsx — shows emoji placeholder until real asset dropped in
 - [x] src/components/CelebrationOverlay.tsx — ring burst animation (swap for Lottie later)
 - [x] src/components/StreakBadge.tsx — flame + count
+- [x] src/components/StreakMilestoneOverlay.tsx — animated milestone celebration at 3/7/14/30/50/100 days
 - [x] src/components/EnergyCard.tsx — animated selection card with left color bar
 - [x] src/components/TaskCard.tsx — swipe left→delete, swipe right→promote, haptics
 - [x] src/components/SlotSection.tsx — slot header + task list + add button
